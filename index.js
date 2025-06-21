@@ -69,8 +69,8 @@ app.post('/api/orders', async (req, res) => {
 
   const { data, error } = await supabase
     .from('orders')
-    .insert([{ table_id, items, status: 'pending', notes: notes || null }])
-    .select('id, order_number, created_at, table_id, items, status, notes, payment_type')
+    .insert([{ table_id, items, status: 'pending' }])
+    .select('id, order_number, created_at, table_id, items, status, payment_type')
     .single();
   if (error) {
     console.error('POST /api/orders - Order insert error:', error);
@@ -117,9 +117,9 @@ app.patch('/api/orders/:id', async (req, res) => {
 
   const { data, error } = await supabase
     .from('orders')
-    .update({ items, notes: notes || null })
+    .update({ items })
     .eq('id', id)
-    .select('id, order_number, created_at, table_id, items, status, notes, payment_type')
+    .select('id, order_number, created_at, table_id, items, status, payment_type')
     .single();
   if (error) {
     console.error('PATCH /api/orders/:id - Order update error:', error);
@@ -553,6 +553,41 @@ app.get('/api/admin/analytics/total-items-sold', async (req, res) => {
   }, 0);
 
   res.json({ totalItemsSold });
+});
+
+const ip = require('ip');
+
+app.get('/api/check-network', (req, res) => {
+  // Get client IP address(es)
+  const xForwardedFor = req.headers['x-forwarded-for'];
+  let clientIps = [];
+
+  if (xForwardedFor) {
+    // x-forwarded-for can be a comma-separated list of IPs
+    clientIps = xForwardedFor.split(',').map(ip => ip.trim());
+  } else if (req.connection && req.connection.remoteAddress) {
+    clientIps = [req.connection.remoteAddress];
+  } else if (req.socket && req.socket.remoteAddress) {
+    clientIps = [req.socket.remoteAddress];
+  } else if (req.connection && req.connection.socket && req.connection.socket.remoteAddress) {
+    clientIps = [req.connection.socket.remoteAddress];
+  }
+
+  // Normalize IPv4-mapped IPv6 addresses
+  clientIps = clientIps.map(ip => (ip.startsWith('::ffff:') ? ip.substring(7) : ip));
+
+  // Allowed IP prefixes for café Wi-Fi
+  const ALLOWED_IP_PREFIXES = [
+    '2402:e280',
+    '58.84'
+  ];
+
+  // Check if any client IP starts with allowed prefixes
+  const isAllowed = clientIps.some(ip =>
+    ALLOWED_IP_PREFIXES.some(prefix => ip.startsWith(prefix))
+  );
+
+  res.json({ connected: isAllowed });
 });
 
 // Start server
